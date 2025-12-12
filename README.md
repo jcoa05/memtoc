@@ -5,22 +5,18 @@
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
-**Tictoc-style memory tracking for R.** Simple start/stop syntax for monitoring RAM usage during code execution, with continuous background polling to capture true peak memory.
-
-Inspired by the [tictoc](https://github.com/jabiru/tictoc) package for timing.
+**Tictoc-style memory tracking for R.** Simple start/stop syntax for monitoring RAM usage during code execution with continuous background polling to capture true peak memory. Inspired by the [tictoc](https://github.com/jabiru/tictoc) package for timing.
 
 ## Installation
 
 ```r
-# Install from GitHub
 # install.packages("pak")
 pak::pak("jcoa05/memtoc")
-
 # Or using devtools
 devtools::install_github("jcoa05/memtoc")
 ```
 
-## Quick Start
+## Quick start
 
 ```r
 library(memtoc)
@@ -35,31 +31,30 @@ toc_mem()
 
 ## Why memtoc?
 
-R's built-in memory tools (`gc()`, `object.size()`) only show point-in-time snapshots. **memtoc captures the true peak memory** even for short-lived allocations by continuously sampling in the background.
+R's built-in memory tools (`gc()`, `object.size()`) only show point-in-time snapshots. **Prioritizing ease of use, memtoc captures true peak memory** by continuously sampling in the background.
 
 ```r
 tic_mem("matrix operation")
 x <- matrix(rnorm(1e8), ncol = 1000)  # ~800 MB temporary allocation
 y <- colMeans(x)                        
-rm(x)  # x is gone, but memtoc caught the peak!
+rm(x)  # x is gone, but memtoc caught the peak
 toc_mem()
 #> ✔ matrix operation: 812.4 MB peak | 45.2 MB current | 3.21 sec | 7 samples
+# without background polling, you'd only see the final 45 MB.
 ```
-
-Without background polling, you'd only see the final 45 MB.
 
 ## Features
 
 | Feature | Description |
 |---------|-------------|
-| 🎯 **Background Polling** | Continuous sampling catches transient allocations |
-| 📊 **Nested Tracking** | Track pipelines and individual steps simultaneously |
-| ⚡ **Parallel Monitoring** | Auto-detect and monitor `future` workers |
-| 💾 **Crash Recovery** | Recover data if R crashes mid-computation |
-| ⚠️ **System Warnings** | Alerts when system RAM is running low |
+| 🎯 **Background polling** | Continuous sampling catches transient allocations |
+| 📊 **Nested tracking** | Track pipelines and individual steps simultaneously |
+| ⚡ **Parallel monitoring** | Auto-detect and monitor `future` workers |
+| 💾 **Crash recovery** | Recover data if R crashes mid-computation |
+| ⚠️ **System warnings** | Alerts when system RAM is running low |
 | 📝 **Logging** | Collect results for later analysis |
 
-### Background Polling
+### Background polling
 
 ```r
 tic_mem("job", interval = 0.5)  # Sample every 0.5 seconds
@@ -68,7 +63,7 @@ result <- toc_mem()
 result$trajectory  # Full memory timeline
 ```
 
-### Nested Tracking
+### Nested tracking
 
 ```r
 tic_mem("full pipeline")
@@ -78,7 +73,7 @@ tic_mem("full pipeline")
 toc_mem()
 ```
 
-### Parallel Worker Monitoring
+### Parallel worker monitoring
 
 ```r
 library(future)
@@ -90,7 +85,7 @@ toc_mem()
 #> ✔ parallel job: 1.2 GB peak | 245 MB current | 5.4 sec | 4 workers
 ```
 
-### Crash Recovery
+### Crash recovery
 
 ```r
 # After R restart
@@ -99,7 +94,7 @@ mem_recover()
 data <- mem_recover(pid = 12345)
 ```
 
-## API Reference
+## Reference
 
 | Function | Description |
 |----------|-------------|
@@ -120,19 +115,11 @@ See `vignette("memtoc")` for a detailed tutorial, or `?tic_mem` for function hel
 ## Requirements
 
 - R ≥ 4.1.0
-- Dependencies: `ps`, `cli`, `callr` (installed automatically)
-- Optional: `future`, `parallelly` for parallel worker monitoring
+- Dependencies: `ps`, `cli`, and `callr` installed automatically
+- Optional: `future` and `parallelly` for parallel worker monitoring
+- Currently available only for Windows
 
-## Related Packages
-
+## Related packages
 - [tictoc](https://github.com/jabiru/tictoc): Timing (memtoc is for memory)
 - [bench](https://bench.r-lib.org/): Benchmarking with memory tracking
 - [profmem](https://github.com/HenrikBengtsson/profmem): Memory profiling
-
-## Contributing
-
-Issues and pull requests welcome at [GitHub](https://github.com/jcoa05/memtoc/issues).
-
-## License
-
-MIT
