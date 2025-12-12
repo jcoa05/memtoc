@@ -1,0 +1,210 @@
+---
+title: "Getting Started with memtoc"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with memtoc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+## Introduction
+ 
+memtoc provides simple start/stop memory tracking for R, inspired by the
+[tictoc](https://github.com/jabiru/tictoc) package for timing. Wrap any code
+block with `tic_mem()` and `toc_mem()` to measure RAM usage.
+
+```{r setup}
+library(memtoc)
+```
+
+## Basic Usage
+
+The simplest use case is tracking memory for a single operation:
+
+```{r basic}
+tic_mem("load data")
+data <- read.csv("large_file.csv")
+toc_mem()
+#> ✔ load data: 142.3 MB peak | 142.3 MB current | 1.24 sec | 2 samples
+```
+
+The output shows:
+
+- **Peak memory**: Maximum RSS (Resident Set Size) during the operation
+- **Current memory**: RSS at the end of the operation
+- **Elapsed time**: Wall-clock time
+- **Samples**: Number of memory measurements taken
+
+## Background Polling
+
+By default, memtoc spawns a background process that continuously samples memory.
+This captures the true peak even for short-lived allocations:
+ 
+```{r polling}
+tic_mem("matrix operations", interval = 0.5)  # Sample every 0.5 seconds
+
+# Create a large temporary matrix
+x <- matrix(rnorm(1e8), ncol = 1000)  # ~800 MB
+y <- colMeans(x)                        # x can be garbage collected
+rm(x)
+gc()
+
+result <- toc_mem()
+#> ✔ matrix operations: 812.4 MB peak | 45.2 MB current | 3.21 sec | 7 samples
+```
+
+Without background polling, you would only see the final memory (45.2 MB),
+missing the 800 MB peak. Access the full trajectory with `result$trajectory`.
+
+For very quick operations, disable polling to avoid startup overhead:
+
+```{r snapshot}
+tic_mem("quick op", interval = NULL)  # Snapshot mode
+y <- 1:100
+toc_mem()
+```
+
+## Nested Tracking
+
+Track an entire pipeline while also measuring individual steps:
+
+```{r nested}
+tic_mem("full pipeline")
+
+  tic_mem("step 1: load")
+  data <- read.csv("data.csv")
+  toc_mem()
+  #> ✔ step 1: load: 50.2 MB peak | 50.2 MB current | 1.2 sec
+
+  tic_mem("step 2: transform")
+  features <- transform(data)
+  toc_mem()
+  #> ✔ step 2: transform: 125.8 MB peak | 98.3 MB current | 2.4 sec
+
+  tic_mem("step 3: model")
+  model <- train(features)
+  toc_mem()
+  #> ✔ step 3: model: 512.1 MB peak | 201.5 MB current | 45.2 sec
+
+toc_mem()
+#> ✔ full pipeline: 512.1 MB peak | 201.5 MB current | 48.8 sec
+```
+
+## Logging Results
+
+Collect results for later analysis:
+
+```{r logging}
+mem_clearlog()
+
+for (i in 1:10) {
+  tic_mem(paste("iteration", i))
+  # ... do work ...
+  toc_mem(log = TRUE, quiet = TRUE)
+}
+
+# Get all results as a data frame
+results <- mem_log()
+summary(results$mem_peak)
+```
+
+## Parallel Worker Monitoring
+
+When using the `future` package for parallel processing, memtoc can monitor
+memory across all workers:
+
+```{r parallel}
+library(future)
+library(future.apply)
+
+# Set up parallel workers
+plan(multisession, workers = 4)
+
+# Check that workers are detected
+mem_parallel_info()
+#> ── Parallel Backend Info
+#> • Main process PID: 12345
+#> • Current plan: multisession
+#> • Workers configured: 4
+
+# Monitor parallel job
+tic_mem("parallel computation", workers = "auto")
+result <- future_lapply(1:100, function(i) {
+  x <- rnorm(1e6)
+  mean(x)
+}, future.seed = TRUE)
+mem_result <- toc_mem()
+#> ✔ parallel computation: 1.2 GB peak | 245 MB current | 5.4 sec | 4 workers
+
+# View per-worker breakdown
+mem_result$worker_stats
+
+# Clean up
+plan(sequential)
+```
+
+Worker options:
+
+- `workers = "auto"`: Auto-detect future workers (default)
+- `workers = "none"`: Only monitor main process
+- `workers = "children"`: Monitor main process and child processes
+- `workers = c(pid1, pid2)`: Explicit PID list
+
+## System Memory Warnings
+
+memtoc warns you when system RAM is running low:
+
+```{r warnings}
+tic_mem("memory intensive")
+# ... allocate lots of memory ...
+toc_mem()
+#> ✔ memory intensive: 12.4 GB peak | 11.2 GB current | 45.2 sec
+#> ⚠ System RAM high: 87.3% used
+```
+
+Warnings appear at 80% usage; critical alerts at 95%.
+
+## Crash Recovery
+
+If R crashes during a long computation, recover the collected samples:
+
+```{r recovery}
+# After restarting R
+mem_recover()
+#> ℹ Found 1 recovery file:
+#>   • PID 12345: 15.2 KB, 152 samples
+
+# Recover the data
+recovered <- mem_recover(pid = 12345)
+head(recovered)
+```
+
+## Diagnostics
+
+If background polling isn't working, run diagnostics:
+
+```{r diagnostics}
+mem_capabilities()
+#>     memory_queries background_polling 
+#>               TRUE               TRUE
+
+# Detailed troubleshooting
+mem_diagnose()
+```
+
+## Tips
+
+1. **Use labels**: Always pass a message to `tic_mem()` for easier tracking
+2. **Adjust interval**: Use shorter intervals (0.1-0.5s) for fast operations,
+   longer intervals (1-5s) for long-running jobs
+3. **Disable polling for quick ops**: Use `interval = NULL` for sub-second operations
+4. **Monitor workers**: Set `workers = "auto"` when using `future` for parallelism
+5. **Log results**: Use `log = TRUE` when running benchmarks or comparisons

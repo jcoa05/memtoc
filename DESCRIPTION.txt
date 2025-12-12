@@ -1,0 +1,37 @@
+Package: memtoc
+Title: Tictoc-style memory usage tracking
+Version: 0.1.0
+Authors@R: 
+    person(given = "Juan",
+           family = "Ocampo",
+           role = c("aut", "cre"),
+           email = "jocampo1997@hotmail.com",
+           comment = c(ORCID = "0000-0002-9353-7581"))
+Description: Simple start/stop memory tracking functions 'tic_mem()' and 
+    'toc_mem()' that can be nested, inspired by the 'tictoc' package.
+    Track RAM usage during code execution with support for logging, custom messages,
+    nested tracking blocks, and parallel worker monitoring. Features continuous 
+    background polling to capture true peak memory usage across main process and
+    workers. Integrates with the 'future' package ecosystem for automatic worker
+    detection. Designed for monitoring memory consumption in parallel workflows.
+License: MIT + file LICENSE
+URL: https://github.com/jcoa05/memtoc
+BugReports: https://github.com/jcoa05/memtoc
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.0
+Depends: 
+    R (>= 4.1.0)
+Imports:
+    ps (>= 1.7.0),
+    cli (>= 3.0.0),
+    callr (>= 3.7.0)
+Suggests:
+    testthat (>= 3.0.0),
+    withr,
+    future,
+    parallelly,
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+VignetteBuilder: knitr
