@@ -34,4 +34,5 @@ Suggests:
     knitr,
     rmarkdown
 Config/testthat/edition: 3
+OS_type: windows
 VignetteBuilder: knitr
