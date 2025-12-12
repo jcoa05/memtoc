@@ -85,7 +85,7 @@ tic_mem <- function(msg = NULL, quiet = TRUE, interval = 1, persist = TRUE,
                     workers = "auto") {
   # Capture memory state at start
   mem <- get_memory_info()
-  
+
   if (!mem$success && !quiet) {
     cli::cli_warn(
       "Memory query failed. Results may be incomplete.",
@@ -93,20 +93,20 @@ tic_mem <- function(msg = NULL, quiet = TRUE, interval = 1, persist = TRUE,
       .frequency_id = "memtoc_memory_warning"
     )
   }
-  
+
   # Resolve which PIDs to monitor
   pids_to_monitor <- resolve_worker_pids(workers, include_main = TRUE)
   n_workers <- length(pids_to_monitor) - 1L  # Exclude main process from count
-  
+
   # Determine if we should use background monitoring
   use_monitor <- !is.null(interval) && interval > 0
   monitor <- NULL
   log_path <- NULL
-  
+
   if (use_monitor) {
     # Set up persistence path
     log_path <- if (persist) default_log_path() else NULL
-    
+
     # Start background monitor with all PIDs
     monitor <- tryCatch(
       start_monitor(
@@ -127,7 +127,7 @@ tic_mem <- function(msg = NULL, quiet = TRUE, interval = 1, persist = TRUE,
       }
     )
   }
-  
+
   # Create stack entry
   entry <- list(
     msg = msg,
@@ -142,10 +142,10 @@ tic_mem <- function(msg = NULL, quiet = TRUE, interval = 1, persist = TRUE,
     n_workers = n_workers,
     workers_spec = workers
   )
-  
+
   # Push to stack
   stack_push(entry)
-  
+
   # Optional startup message
   if (!quiet) {
     mode_str <- if (use_monitor && !is.null(monitor)) {
@@ -153,20 +153,20 @@ tic_mem <- function(msg = NULL, quiet = TRUE, interval = 1, persist = TRUE,
     } else {
       "snapshot mode"
     }
-    
+
     workers_str <- if (n_workers > 0) {
       paste0(", ", n_workers, " worker", if (n_workers > 1) "s" else "")
     } else {
       ""
     }
-    
+
     if (!is.null(msg)) {
       cli::cli_alert_info("Starting: {msg} ({mode_str}{workers_str})")
     } else {
       cli::cli_alert_info("Starting memory tracking ({mode_str}{workers_str})")
     }
   }
-  
+
   invisible(mem$timestamp)
 }
 
@@ -200,6 +200,8 @@ tic_mem <- function(msg = NULL, quiet = TRUE, interval = 1, persist = TRUE,
 #'
 #' @export
 #'
+#' @importFrom stats aggregate
+#'
 #' @examples
 #' tic_mem("example")
 #' x <- rnorm(1e6)
@@ -225,27 +227,27 @@ toc_mem <- function(log = FALSE, quiet = FALSE) {
   toc_time <- proc.time()[["elapsed"]]
   toc_timestamp <- Sys.time()
   toc_mem_info <- get_memory_info()
-  
+
   # Pop matching tic_mem entry
   entry <- stack_pop()
-  
+
   # Stop the background monitor and get trajectory
   trajectory <- NULL
   if (!is.null(entry$monitor)) {
     trajectory <- stop_monitor(entry$monitor, log_path = entry$log_path)
   }
-  
+
   # Clean up persistence file (after we've read from it)
   if (!is.null(entry$log_path)) {
     cleanup_persistence(entry$log_path)
   }
-  
+
   # Calculate metrics
   elapsed <- toc_time - entry$tic_time
   mem_start <- entry$tic_mem$rss
   mem_end <- toc_mem_info$rss
   main_pid <- Sys.getpid()
-  
+
   # Initialize variables
   sys_peak_percent <- NA_real_
   sys_total <- NA_real_
@@ -253,18 +255,18 @@ toc_mem <- function(log = FALSE, quiet = FALSE) {
   cpu_system <- NA_real_
   worker_stats <- NULL
   n_workers <- if (!is.null(entry$n_workers)) entry$n_workers else 0L
-  
+
   # Determine peak memory and extract system info from trajectory
   if (!is.null(trajectory) && is.data.frame(trajectory) && nrow(trajectory) > 0) {
     n_samples <- nrow(trajectory)
-    
+
     # Calculate per-worker statistics if multiple PIDs
     unique_pids <- unique(trajectory$pid)
-    
+
     if (length(unique_pids) > 1) {
       # Multiple processes monitored
       worker_stats <- calculate_worker_stats(trajectory, main_pid)
-      
+
       # Total peak = max of sum of RSS at each timestamp
       # Group by timestamp and sum RSS, then take max
       total_by_time <- aggregate(rss ~ timestamp, data = trajectory, FUN = sum)
@@ -273,7 +275,7 @@ toc_mem <- function(log = FALSE, quiet = FALSE) {
       # Single process
       mem_peak <- max(trajectory$rss, na.rm = TRUE)
     }
-    
+
     # Extract system memory info if available
     if ("sys_percent" %in% names(trajectory)) {
       sys_peak_percent <- max(trajectory$sys_percent, na.rm = TRUE)
@@ -282,7 +284,7 @@ toc_mem <- function(log = FALSE, quiet = FALSE) {
     if ("sys_total" %in% names(trajectory)) {
       sys_total <- trajectory$sys_total[1]
     }
-    
+
     # Extract CPU times for main process only
     main_traj <- trajectory[trajectory$pid == main_pid, ]
     if ("cpu_user" %in% names(main_traj) && nrow(main_traj) > 1) {
@@ -296,17 +298,17 @@ toc_mem <- function(log = FALSE, quiet = FALSE) {
     mem_peak <- max(c(mem_start, mem_end), na.rm = TRUE)
     n_samples <- 0L
   }
-  
+
   if (is.infinite(mem_peak) || is.na(mem_peak)) {
     mem_peak <- NA_real_
   }
-  
+
   mem_change <- if (!is.na(mem_end) && !is.na(mem_start)) {
     mem_end - mem_start
   } else {
     NA_real_
   }
-  
+
   # Build result object
   result <- structure(
     list(
@@ -329,17 +331,17 @@ toc_mem <- function(log = FALSE, quiet = FALSE) {
     ),
     class = "memtoc_result"
   )
-  
+
   # Add to log if requested
   if (log) {
     log_push(result)
   }
-  
+
   # Print summary if not quiet
   if (!quiet) {
     print_toc_message(result)
   }
-  
+
   invisible(result)
 }
 
@@ -353,12 +355,12 @@ calculate_worker_stats <- function(trajectory, main_pid) {
   if (is.null(trajectory) || nrow(trajectory) == 0) {
     return(NULL)
   }
-  
+
   unique_pids <- unique(trajectory$pid)
-  
+
   stats_list <- lapply(unique_pids, function(pid) {
     pid_data <- trajectory[trajectory$pid == pid, ]
-    
+
     data.frame(
       pid = pid,
       is_main = pid == main_pid,
@@ -369,7 +371,7 @@ calculate_worker_stats <- function(trajectory, main_pid) {
       stringsAsFactors = FALSE
     )
   })
-  
+
   do.call(rbind, stats_list)
 }
 
@@ -384,31 +386,31 @@ print_toc_message <- function(result) {
   } else {
     ""
   }
-  
+
   # Format components
   peak_str <- format_bytes(result$mem_peak)
   current_str <- format_bytes(result$mem_end)
   time_str <- format_duration(result$elapsed)
-  
+
   # Add sample count if available
   samples_str <- if (result$n_samples > 0) {
     paste0(" | ", result$n_samples, " sample", if (result$n_samples != 1) "s" else "")
   } else {
     ""
   }
-  
+
   # Add worker count if available
   workers_str <- if (!is.null(result$n_workers) && result$n_workers > 0) {
     paste0(" | ", result$n_workers, " worker", if (result$n_workers != 1) "s" else "")
   } else {
     ""
   }
-  
+
   # Use cli for nice formatting
   cli::cli_alert_success(
     "{label}{peak_str} peak | {current_str} current | {time_str}{samples_str}{workers_str}"
   )
-  
+
   # Warn if system memory was high
   if (!is.na(result$sys_peak_percent) && result$sys_peak_percent > 80) {
     if (result$sys_peak_percent > 95) {
@@ -428,11 +430,11 @@ print_toc_message <- function(result) {
 #' @export
 print.memtoc_result <- function(x, ...) {
   cli::cli_h3("memtoc result")
-  
+
   if (!is.null(x$msg)) {
     cli::cli_text("Label: {.val {x$msg}}")
   }
-  
+
   cli::cli_bullets(c(
     "*" = "Memory at start: {format_bytes(x$mem_start)}",
     "*" = "Memory at end: {format_bytes(x$mem_end)}",
@@ -441,12 +443,12 @@ print.memtoc_result <- function(x, ...) {
     "*" = "Elapsed time: {format_duration(x$elapsed)}",
     "*" = "Samples collected: {x$n_samples}"
   ))
-  
+
   # Show worker info if available
   if (!is.null(x$n_workers) && x$n_workers > 0) {
     cli::cli_text("")
     cli::cli_text("{.strong Parallel workers:} {x$n_workers}")
-    
+
     if (!is.null(x$worker_stats) && nrow(x$worker_stats) > 0) {
       for (i in seq_len(nrow(x$worker_stats))) {
         row <- x$worker_stats[i, ]
@@ -457,7 +459,7 @@ print.memtoc_result <- function(x, ...) {
       }
     }
   }
-  
+
   # Show system memory info if available
   if (!is.na(x$sys_peak_percent)) {
     cli::cli_text("")
@@ -468,7 +470,7 @@ print.memtoc_result <- function(x, ...) {
       "*" = "System RAM peak usage: {round(x$sys_peak_percent, 1)}%"
     ))
   }
-  
+
   # Show CPU times if available
   if (!is.na(x$cpu_user)) {
     cli::cli_text("")
@@ -478,16 +480,16 @@ print.memtoc_result <- function(x, ...) {
       "*" = "System: {round(x$cpu_system, 2)} sec"
     ))
   }
-  
+
   if (!is.null(x$trajectory) && nrow(x$trajectory) > 0) {
     cli::cli_text("")
     cli::cli_text("Trajectory data available in {.code $trajectory}")
   }
-  
+
   if (!is.null(x$worker_stats) && nrow(x$worker_stats) > 0) {
     cli::cli_text("Per-worker stats available in {.code $worker_stats}")
   }
-  
+
   invisible(x)
 }
 
@@ -511,7 +513,7 @@ print.memtoc_result <- function(x, ...) {
 mem_clear <- function() {
   # Get current stack depth
   n <- stack_depth()
-  
+
   if (n > 0) {
     # Attempt to stop any running monitors
     while (!stack_is_empty()) {
@@ -531,10 +533,10 @@ mem_clear <- function() {
         cleanup_persistence(entry$log_path)
       }
     }
-    
+
     cli::cli_alert_info("Cleared {n} item{?s} from the memtoc stack.")
   }
-  
+
   invisible(NULL)
 }
 
