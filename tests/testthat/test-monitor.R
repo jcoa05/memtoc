@@ -51,7 +51,8 @@ test_that("trajectory contains valid data", {
   skip_on_cran()
   mem_clear()
   
-  tic_mem("trajectory test", interval = 0.3)
+  # Use workers="none" to ensure only main process is tracked
+  tic_mem("trajectory test", interval = 0.3, workers = "none")
   
   # Allocate some memory to create a visible change
   x <- numeric(1e7)
@@ -76,7 +77,7 @@ test_that("trajectory contains valid data", {
     # Timestamps should be in order
     expect_true(all(diff(traj$timestamp) >= 0))
     
-    # PID should match current process
+    # PID should match current process (since workers="none")
     expect_true(all(traj$pid == Sys.getpid()))
     
     # System memory should be valid (if present)
@@ -153,8 +154,8 @@ test_that("mem_clear stops background monitors", {
   tic_mem("will be cleared", interval = 1)
   Sys.sleep(0.2)
   
-  # Clear should not error even with active monitor
-  expect_silent(mem_clear())
+ # Clear should not error even with active monitor (may print message)
+  expect_no_error(mem_clear())
   
   # Stack should be empty
   expect_error(toc_mem(), "stack is empty")

@@ -11,3 +11,4 @@
 ^\.vscode$
 ^cran-comments\.md$
 ^DEPLOYMENT_GUIDE\.md$
+^memtoc\.Rproj$
