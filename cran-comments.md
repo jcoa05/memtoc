@@ -1,14 +1,13 @@
 ## R CMD check results
 
-0 errors | 0 warnings | 1 note
+0 errors | 0 warnings | 0 note
 
 * This is a new submission.
 
 ## Test environments
 
 * Local Windows 11, R 4.5.1
-* GitHub Actions (ubuntu-latest, macos-latest, windows-latest)
-* R-hub (linux, windows, macos)
+* GitHub Actions (windows-latest)
 
 ## Package Description
 
